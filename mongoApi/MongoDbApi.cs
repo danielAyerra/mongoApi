@@ -1,140 +1,145 @@
 ﻿namespace DbCom;
 
+using Amazon.Runtime.Internal.Util;
 using DbCom.Models;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Serilog;
 
-public static class MongoDbApi
+
+public class MongoDbApi
 {
+    private MongoDbApiLogger logger = new MongoDbApiLogger();
+
     private static MongoClient _mongoClient;
     private static IMongoDatabase _mongoDatabase;
 
-    private static readonly JsonSerializerSettings _settings=new JsonSerializerSettings{
-                TypeNameHandling=TypeNameHandling.Auto,
-                NullValueHandling=NullValueHandling.Include
-            };
-
-    public static bool RegisterClassMaps(){
-        if(!BsonClassMap.IsClassMapRegistered(typeof(AbstractModel)))
-            BsonClassMap.RegisterClassMap<AbstractModel>(cm =>
-            {
-                cm.AutoMap();
-                cm.SetDiscriminatorIsRequired(true);
-            });
-        if(!BsonClassMap.IsClassMapRegistered(typeof(Example)))
-            BsonClassMap.RegisterClassMap<Example>();
-        return true;
+    public bool RegisterClassMaps(){
+        bool registrationOk;
+        try{
+            logger.Debug("It is mandatory before building to add here any Model available in your project, as set at the example");
+            if(!BsonClassMap.IsClassMapRegistered(typeof(AbstractModel)))
+                BsonClassMap.RegisterClassMap<AbstractModel>(cm =>
+                {
+                    cm.AutoMap();
+                    cm.SetDiscriminatorIsRequired(true);
+                });
+            logger.Info("Registered abstract class, root of all the models to use");
+            byte counter=0;
+            //Add here any Models available at the project
+            if(!BsonClassMap.IsClassMapRegistered(typeof(Example))){
+                BsonClassMap.RegisterClassMap<Example>();
+                counter++;    
+            }
+            logger.Info($"Added {counter} models. Enjoy");
+            registrationOk = true;
+        } catch(Exception e){
+            logger.Err($"Error while registering model maps: {e.Message}");
+            registrationOk=false;
+        }
+        return registrationOk;
     }
 
-    public static bool Connect(string connection, string database){
+    public bool Connect(string connection, string database){
         bool connOk;
         try{
             _mongoClient=new MongoClient(connection);
             _mongoDatabase=_mongoClient.GetDatabase(database);
+            logger.Info("Connection succesful");
             connOk=true;
         }catch(Exception e){
-            PrintFail("Error al conectar base de datos: ", e.Message);
-            if(e.Source!=null)
-                PrintFail("Origen: ", e.Source);
-            if(e.StackTrace!=null)
-                PrintFail("Pila de llamadas: ", e.StackTrace);
+            logger.Err($"Issue connecting to MongoDb: {e.Message}");
             connOk=false;
         }
         return connOk;    
     }
 
-    public static bool Insert(string jsonString, Type type){   
+    public bool Insert(string jsonString, Type type){   
         bool insertOk;
         try{          
             AbstractModel retrievedData = GetDataObjectFromJsonString(jsonString, type);
             var collection = _mongoDatabase.GetCollection<AbstractModel>(type.Name);
             collection.InsertOne(retrievedData);
+            logger.Info($"Insertion successful");
             insertOk=true;
         }
         catch(Exception e){
-            PrintFail("Error al insertar en la colección: ", e.Message);
-            if(e.Source!=null)
-                PrintFail("Origen: ", e.Source);
-            if(e.StackTrace!=null)
-                PrintFail("Pila de llamadas: ", e.StackTrace);
+            logger.Err($"Insertion error: {e.Message}");
             insertOk=false; 
         }
         return insertOk;
     }
 
-    private static AbstractModel GetDataObjectFromJsonString(string jsonString, Type type)
+    private AbstractModel GetDataObjectFromJsonString(string jsonString, Type type)
     {
-        JObject jObj=JObject.Parse(jsonString);
-        string tipo = jObj["TipoHijo"].ToString();
-        if(type.Name!=tipo)
-            throw new Exception("Tipos no coinciden");
+        logger.Debug("Parsing json to object");
+        logger.Warn("Make sure type inherits from AbstractModel");
+        JToken jObj=JObject.Parse(jsonString);
+        string typeName = jObj["ChildType"].ToString();
+        if (type.Name!=typeName)
+            throw new Exception("Type mismatch. Review json and check the type actually desired");
         AbstractModel retrievedObject =(AbstractModel)jObj.ToObject(type);
         return retrievedObject;
     }
 
-    public static bool InsertMany (string jsonString, Type type){
+    public bool InsertMany (string jsonString, Type type){
         bool insertOk;
+        logger.Warn("Check that type passed is registered and maped");
         try{
             List<AbstractModel> data = GetDataListFromJsonString(jsonString, type);
             var collection = _mongoDatabase.GetCollection<AbstractModel>(type.Name);
             collection.InsertMany(data);
+            logger.Info("Insertion succesful");
             insertOk=true;
         }
         catch(Exception e){
-            PrintFail("Error al insertar en la colección: ", e.Message);
-            if(e.Source!=null)
-                PrintFail("Origen: ", e.Source);
-            if(e.StackTrace!=null)
-                PrintFail("Pila de llamadas: ", e.StackTrace);
+            logger.Err($"Insertion error: {e.Message}");
             insertOk=false;
         }
         return insertOk;
     }
 
-    private static List<AbstractModel> GetDataListFromJsonString(string jsonString, Type type)
+    private List<AbstractModel> GetDataListFromJsonString(string jsonString, Type type)
     {
+        logger.Debug("Parsing json to object");
+        logger.Warn("Make sure type inherits from AbstractModel");
         JArray jArr=JArray.Parse(jsonString);
         List<AbstractModel> elements = new List<AbstractModel>();
         foreach(JObject jObj in jArr){
-            string tipo = jObj["TipoHijo"].ToString();
-            if(type.Name!=tipo)
-                throw new Exception("Tipos no coinciden");
+            string tipo = jObj["ChildType"].ToString();
+            if (type.Name!=tipo)
+                throw new Exception("Type mismatch. Review json and check the type actually desired");
             AbstractModel retrievedObject=(AbstractModel)jObj.ToObject(type);
             elements.Add(retrievedObject);
         }
         return elements;
     }
 
-    public static bool Select(out List<AbstractModel> data, string? jsonParams, Type type){
+    public bool Select(out List<AbstractModel> data, string? jsonParams, Type type){
         bool selectOk;
         data = new List<AbstractModel>();
         try{
-            
             var collection=_mongoDatabase.GetCollection<BsonDocument>(type.Name);
             List<BsonDocument> findObject;
+            logger.Warn($"make sure that jsonParams are attributes which actually exist at <{type.Name}>");
             BsonDocument filterDocument=composeFilter(jsonParams);
             findObject = collection.Find<BsonDocument>(filterDocument).ToList<BsonDocument>();
             foreach(BsonDocument bsonElement in findObject){
                 data.Add(BsonSerializer.Deserialize<AbstractModel>(bsonElement));
             }
+            logger.Info("No issues on searching for data");
             selectOk=true;
         }catch(Exception e){
-            PrintFail("Error al buscar en la colección: ", e.Message);
-            if(e.Source!=null)
-                PrintFail("Origen: ", e.Source);
-            if(e.StackTrace!=null)
-                PrintFail("Pila de llamadas: ", e.StackTrace);
+            logger.Err($"Issue while searching: {e.Message}");
             selectOk=false;
             data=new List<AbstractModel>();
         }
         return selectOk; 
     }
     
-    public static bool Update(object data, Type type, Dictionary<string, string> newVals){
+    public bool Update(object data, Type type, Dictionary<string, string> newVals){
         bool updateOk;
         try{
             var collection=_mongoDatabase.GetCollection<BsonDocument>(type.Name);
@@ -148,22 +153,20 @@ public static class MongoDbApi
                 }
                 var updater = Builders<BsonDocument>.Update.Combine(updateParams);
                 collection.UpdateOne(filter, updater);
+                logger.Info("Update successful");
             }else{
-                return false;
+                updateOk= false;
+                throw new Exception("No ObjectId was provided. Check parameter or use UpdateMany");
             }
             updateOk=true;
         }catch(Exception e){
-            PrintFail("Error al actualizar el objeto: ", e.Message);
-            if(e.Source!=null)
-                PrintFail("Origen: ", e.Source);
-            if(e.StackTrace!=null)
-                PrintFail("Pila de llamadas: ", e.StackTrace);
+            logger.Err($"Not posible to update: {e.Message}");
             updateOk=false;
         }
         return updateOk;
     }
     
-    public static bool UpdateMany(Type type, string jsonParams, Dictionary<string,string> newVals){
+    public bool UpdateMany(Type type, string jsonParams, Dictionary<string,string> newVals){
         bool updateManyOk;
         try{
             var collection=_mongoDatabase.GetCollection<BsonDocument>(type.Name);
@@ -174,56 +177,49 @@ public static class MongoDbApi
             }
             var updater = Builders<BsonDocument>.Update.Combine(updateParams);
             collection.UpdateMany(filter, updater);
+            logger.Info("Update successful");
             updateManyOk= true;
         }catch(Exception e){
-            PrintFail("Error al actualizar objetos: ", e.Message);
-            if(e.Source!=null)
-                PrintFail("Origen: ", e.Source);
-            if(e.StackTrace!=null)
-                PrintFail("Pila de llamadas: ", e.StackTrace);
+            logger.Err($"Failure while updating: {e.Message}");
             updateManyOk=false;
         }
         return updateManyOk;
     }
     
-    public static bool Delete(object data, string collectionName){
+    public bool Delete(object data, string collectionName){
         bool deleteOk;
         try{
+            logger.Warn("Using Delete method. Make sure you know what you are doing");
             var collection=_mongoDatabase.GetCollection<BsonDocument>(collectionName);
             AbstractModel objectToDelete = (AbstractModel) data;
             if(objectToDelete.ObjectId!=null){
                 ObjectId id = new ObjectId(objectToDelete.ObjectId);
                 var filter = Builders<BsonDocument>.Filter.Eq("_id", id);
                 collection.DeleteOne(filter);
+                logger.Info("Deletion successful");
             }else{
-                throw new Exception("El objeto no existe en la base de datos");
+                throw new Exception("No Object Id was provided for deleting");
             }
             deleteOk= true;
         }catch(Exception e){
-            PrintFail("Error al borrar el objeto: ", e.Message);
-            if(e.Source!=null)
-                PrintFail("Origen: ", e.Source);
-            if(e.StackTrace!=null)
-                PrintFail("Pila de llamadas: ", e.StackTrace);
+            logger.Err($"Problem while trying to delete: {e.Message}");
             deleteOk=false;
         }
         return deleteOk;
     }
     
-    public static bool DeleteMany(Type type, string jsonParams){
+    public bool DeleteMany(Type type, string jsonParams){
         bool deleteManyOk;
         try{
+            logger.Warn("Using Delete method. Make sure you know what you are doing");
             var collection=_mongoDatabase.GetCollection<BsonDocument>(type.Name);
             BsonDocument filter = composeFilter(jsonParams);
             collection.DeleteMany(filter);
             deleteManyOk=true;
+            logger.Info("Deletion successful");
         }
         catch(Exception e){
-             PrintFail("Error al borrar los objetos: ", e.Message);
-            if(e.Source!=null)
-                PrintFail("Origen: ", e.Source);
-            if(e.StackTrace!=null)
-                PrintFail("Pila de llamadas: ", e.StackTrace);
+            logger.Err($"Problem while trying to delete: {e.Message}");
             deleteManyOk=false;
         }
         return deleteManyOk;
@@ -235,10 +231,4 @@ public static class MongoDbApi
         return filter;
     }
     
-    private static void PrintFail(string message, string exceptionMessage){
-        Console.Write(message);
-        Console.WriteLine(exceptionMessage);
-        Console.WriteLine();
-    }
-
 }

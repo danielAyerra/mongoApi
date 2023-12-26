@@ -21,11 +21,11 @@ public class Example:AbstractModel
         this.Name=name;
         this.Age=age;
         this.Surname=surname;
-        this._TipoHijo=typeof(Example).Name;
+        this._ChildType=typeof(Example).Name;
     }
     [BsonConstructor]
     public Example()
     {
-        this._TipoHijo=typeof(Example).Name;
+        this._ChildType=typeof(Example).Name;
     }
 }

@@ -9,12 +9,12 @@ namespace DbCom.Models;
 public class AbstractModel
 {
     [BsonIgnore]
-    [JsonProperty("TipoHijo")]
-    protected string _TipoHijo;
+    [JsonProperty("ChildType")]
+    protected string _ChildType;
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
     public string? ObjectId {get; set;}
 
     [BsonIgnore]
-    public string TipoHijo{get;}
+    public string ChildType{get;}
 }
