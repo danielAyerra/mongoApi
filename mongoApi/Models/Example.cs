@@ -1,9 +1,9 @@
-using DbCom.Models;
+
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using Newtonsoft.Json;
 
-namespace Core.Models;
+namespace DbCom.Models;
 [JsonObject(ItemTypeNameHandling =TypeNameHandling.Auto)]
 [BsonDiscriminator("Example")]
 public class Example:AbstractModel

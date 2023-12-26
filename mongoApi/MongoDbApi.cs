@@ -1,5 +1,6 @@
 ﻿namespace DbCom;
-using Models;
+
+using DbCom.Models;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
@@ -24,10 +25,8 @@ public static class MongoDbApi
                 cm.AutoMap();
                 cm.SetDiscriminatorIsRequired(true);
             });
-        if(!BsonClassMap.IsClassMapRegistered(typeof(Ejercicio)))
-            BsonClassMap.RegisterClassMap<Ejercicio>();
-        if(!BsonClassMap.IsClassMapRegistered(typeof(Usuario)))
-            BsonClassMap.RegisterClassMap<Usuario>();
+        if(!BsonClassMap.IsClassMapRegistered(typeof(Example)))
+            BsonClassMap.RegisterClassMap<Example>();
         return true;
     }
 

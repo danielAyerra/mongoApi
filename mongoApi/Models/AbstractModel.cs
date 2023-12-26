@@ -10,7 +10,7 @@ public class AbstractModel
 {
     [BsonIgnore]
     [JsonProperty("TipoHijo")]
-    private string _TipoHijo;
+    protected string _TipoHijo;
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
     public string? ObjectId {get; set;}
