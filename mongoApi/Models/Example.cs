@@ -8,7 +8,7 @@ namespace DbCom.Models;
 [BsonDiscriminator("Example")]
 public class Example:AbstractModel
 {
-    //TODO: Establecer Enumerado de zonas corporales
+
     [BsonRepresentation(BsonType.String)]
     public string Name {get;set;}
     [BsonRepresentation(BsonType.Int32)]

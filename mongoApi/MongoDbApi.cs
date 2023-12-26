@@ -1,20 +1,18 @@
 ﻿namespace DbCom;
 
-using Amazon.Runtime.Internal.Util;
 using DbCom.Models;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 
 public class MongoDbApi
 {
-    private MongoDbApiLogger logger = new MongoDbApiLogger();
+    private readonly MongoDbApiLogger logger = new MongoDbApiLogger();
 
-    private static MongoClient _mongoClient;
-    private static IMongoDatabase _mongoDatabase;
+    private MongoClient _mongoClient;
+    private IMongoDatabase _mongoDatabase;
 
     public bool RegisterClassMaps(){
         bool registrationOk;
